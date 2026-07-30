@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scruffy: 371 Days — A True Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0b1220;
+    --bg-soft: #101a2c;
+    --amber: #d99a3d;
+    --amber-dim: #a8752a;
+    --rust: #8a4a2f;
+    --paper: #f2ede1;
+    --muted: #9aa3b5;
+    --line: rgba(217,154,61,0.35);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    line-height:1.6;
+    overflow-x:hidden;
+  }
+  h1,h2,.display{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    letter-spacing:0.01em;
+  }
+
+  /* road spine — the signature element: a dashed centerline running behind the page,
+     evoking the highway shoulder where Scruffy waited */
+  .road-spine{
+    position:fixed;
+    top:0; left:50%;
+    width:2px;
+    height:100%;
+    transform:translateX(-50%);
+    background-image:repeating-linear-gradient(
+      to bottom,
+      var(--amber) 0px, var(--amber) 28px,
+      transparent 28px, transparent 56px
+    );
+    opacity:0.14;
+    z-index:0;
+    pointer-events:none;
+  }
+
+  .wrap{max-width:720px; margin:0 auto; padding:0 24px; position:relative; z-index:1;}
+
+  /* HERO */
+  .hero{
+    min-height:100vh;
+    display:flex;
+    align-items:flex-end;
+    position:relative;
+    background:
+      linear-gradient(180deg, rgba(11,18,32,0.15) 0%, rgba(11,18,32,0.65) 60%, var(--bg) 97%),
+      url('https://d8j0ntlcm91z4.cloudfront.net/user_3GBxnyir9H4QeWQMLcy9HlTEX3L/hf_20260730_153749_32b83923-cb03-4031-a432-addcf5593481.png');
+    background-size:cover;
+    background-position:center 30%;
+    padding-bottom:64px;
+  }
+  .hero-inner{width:100%;}
+  .eyebrow{
+    font-size:0.78rem;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--amber);
+    margin-bottom:18px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    display:inline-block;
+    width:22px; height:1px;
+    background:var(--amber);
+  }
+  .hero h1{
+    font-size:clamp(3.2rem, 11vw, 6.5rem);
+    line-height:0.92;
+    color:var(--paper);
+  }
+  .hero .sub{
+    font-family:'Inter',sans-serif;
+    font-weight:500;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--muted);
+    font-size:0.9rem;
+    margin-top:14px;
+  }
+  .hero .tagline{
+    margin-top:28px;
+    font-family:'Fraunces',serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:1.15rem;
+    color:var(--paper);
+    max-width:34ch;
+  }
+
+  /* STORY */
+  section{
+    padding:96px 0;
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .marker{
+    font-family:'Inter',sans-serif;
+    font-size:0.75rem;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--amber-dim);
+    margin-bottom:20px;
+  }
+  .story h2{
+    font-size:clamp(1.8rem, 4vw, 2.6rem);
+    color:var(--paper);
+    margin-bottom:28px;
+    max-width:16ch;
+  }
+  .story p{
+    color:var(--muted);
+    font-size:1.08rem;
+    max-width:56ch;
+    margin-bottom:18px;
+  }
+  .story p strong{
+    color:var(--paper);
+    font-weight:500;
+  }
+
+  /* STAT STRIP */
+  .stat-strip{
+    display:flex;
+    gap:48px;
+    flex-wrap:wrap;
+    padding:40px 0;
+    border-top:1px solid rgba(255,255,255,0.06);
+    border-bottom:1px solid rgba(255,255,255,0.06);
+  }
+  .stat .num{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:2.4rem;
+    color:var(--amber);
+    line-height:1;
+  }
+  .stat .label{
+    color:var(--muted);
+    font-size:0.85rem;
+    margin-top:6px;
+    letter-spacing:0.04em;
+  }
+
+  /* FOLLOW CTA */
+  .follow{
+    text-align:left;
+  }
+  .follow h2{
+    font-size:clamp(2rem, 5vw, 3.2rem);
+    max-width:14ch;
+    margin-bottom:20px;
+  }
+  .follow p{
+    color:var(--muted);
+    max-width:46ch;
+    margin-bottom:36px;
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    background:var(--amber);
+    color:#1a1204;
+    font-weight:600;
+    font-size:0.95rem;
+    text-decoration:none;
+    padding:16px 28px;
+    border-radius:2px;
+    transition:transform 0.18s ease, background 0.18s ease;
+    letter-spacing:0.01em;
+  }
+  .btn:hover{
+    background:#e7ac52;
+    transform:translateY(-2px);
+  }
+  .btn:focus-visible{
+    outline:2px solid var(--paper);
+    outline-offset:3px;
+  }
+  .handle{
+    margin-top:20px;
+    color:var(--amber-dim);
+    font-size:0.9rem;
+    letter-spacing:0.03em;
+  }
+
+  footer{
+    padding:48px 0 64px;
+    border-top:1px solid rgba(255,255,255,0.06);
+    color:var(--muted);
+    font-size:0.82rem;
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    html{scroll-behavior:auto;}
+  }
+
+  @media (max-width:560px){
+    .hero{padding-bottom:48px;}
+    .stat-strip{gap:32px;}
+    section{padding:72px 0;}
+  }
+</style>
+</head>
+<body>
+
+<div class="road-spine" aria-hidden="true"></div>
+
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow">A true story · Coming to film</div>
+    <p class="tagline">He went missing on the road. I never stopped looking. This is how I got him back.</p>
+  </div>
+</header>
+
+<section class="story">
+  <div class="wrap">
+    <div class="marker">The Story</div>
+    <h2>Lost on the road, found his way home.</h2>
+    <p>I drive trucks over the road for a living. Scruffy went missing while I was out there working — and for <strong>over a year</strong>, I never gave up looking for him.</p>
+    <p>This is the true story of what happened in between: the searching, the waiting, the not-knowing — and the day it finally ended.</p>
+    <p>I'm turning it into a film. This is where you'll watch it come together, one piece at a time.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="stat-strip">
+      <div class="stat">
+        <div class="num">371</div>
+        <div class="label">Days missing</div>
+      </div>
+      <div class="stat">
+        <div class="num">1</div>
+        <div class="label">Dog who made it home</div>
+      </div>
+      <div class="stat">
+        <div class="num">∞</div>
+        <div class="label">Times I almost gave up<br>and didn't</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="follow">
+  <div class="wrap">
+    <div class="marker">Follow Along</div>
+    <h2>The story has a happy ending. It earns it.</h2>
+    <p>Follow the account for the book, the scenes, and the making of the film — as it happens.</p>
+    <a class="btn" href="https://www.instagram.com/scruffy371daysfilm" target="_blank" rel="noopener">
+      Follow @scruffy371daysfilm
+    </a>
+    <div class="handle">Instagram · Scruffy 371 Days Film</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex; justify-content:space-between; width:100%; flex-wrap:wrap; gap:12px;">
+    <span>Scruffy: 371 Days</span>
+    <span>A true story, becoming a film.</span>
+  </div>
+</footer>
+
+</body>
+</html>

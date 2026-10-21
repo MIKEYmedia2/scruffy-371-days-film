@@ -40,10 +40,14 @@
   .bar>div{height:100%; background:var(--amber); width:0%; transition:width .25s;}
   #cine-text{position:fixed; left:50%; bottom:130px; transform:translateX(-50%); width:92%; max-width:640px;
        text-align:center; font-style:italic; font-size:1.15rem; color:var(--paper); text-shadow:0 2px 8px #000; z-index:6; display:none;}
+  #cine-video{position:fixed; inset:0; width:100%; height:100%; object-fit:cover; display:none; z-index:4; background:#000;}
+  #btn-mute{position:fixed; right:10px; bottom:10px; z-index:6; margin:0; padding:8px 12px; font-size:1rem;}
 </style>
 </head>
 <body>
 <div id="scene"></div>
+<video id="cine-video" playsinline preload="auto"></video>
+<button id="btn-mute" title="Mute / unmute ambience">🔊</button>
 
 <div id="hud">
   <div class="stat"><span>Search day</span><b id="hud-day">96 of 371</b></div>
@@ -692,6 +696,7 @@ function onDocked(){
   S.dockBonus = Math.max(0, bonus);
   let ctx = "Docked " + (chosen === "auto" ? "by the yard dog." : "by your own hand.");
   if (chosen !== "auto") ctx += " Docking bonus: $" + S.dockBonus + (S.bumps ? " (" + S.bumps + " bump" + (S.bumps > 1 ? "s" : "") + " — Tiny saw.)" : " — clean as a whistle.");
+  if (isVegas()) ctx += " Through the dock wall: slots, voices, somebody's whole evening going on without you.";
   $("lumper-context").textContent = ctx;
   showPanel("p-lumper");
   setMsg("Docked at door " + (S.dockIndex + 1) + ".", "");
@@ -841,24 +846,99 @@ $("btn-free").addEventListener("click", () => {
   setMsg("Free run. The search goes on past February.", "");
 });
 
-/* ---------- cinematic street beat ---------- */
+/* ---------- cinematic arrivals: real footage + ambience ---------- */
 const CINE_LINES = [
   "February, late light. Another load, another road — the search rides along whether it pays or not.",
   "Somewhere behind you: 52nd and Adams, a vacant lot, two bowls by a gate.",
   "You check the lot every six hours when you're home. On the road, you check your mirrors and your phone.",
 ];
-function startCine(){
-  S.mode = "cine";
-  $("cine-text").textContent = CINE_LINES[Math.floor(Math.random() * CINE_LINES.length)];
-  $("cine-text").style.display = "block";
-  setMsg("Rolling…", "any key or click to take the wheel");
+const vEl = $("cine-video");
+let muted = false;
+const beds = {};
+function initAudio(){
+  if (!window.Audio || beds.traffic) return;
+  try {
+    beds.traffic = new Audio("media/amb-traffic.mp3");
+    beds.casino = new Audio("media/amb-casino.mp3");
+    beds.crowd = new Audio("media/amb-crowd.mp3");
+    for (const k in beds){ beds[k].loop = true; beds[k].volume = 0; beds[k].preload = "auto"; }
+  } catch (e) { /* no audio available — the game plays silent */ }
 }
+function isVegas(){ return !!(S.load && S.load.city.indexOf("Las Vegas") === 0); }
+const bedTarget = { traffic: 0, casino: 0, crowd: 0 };
+function updateAmbience(){
+  const t = { traffic: 0, casino: 0, crowd: 0 };
+  if (!muted){
+    if (S.mode === "drive" || S.mode === "choice" || S.mode === "auto"){
+      if (phase === "street") t.traffic = 0.30;
+      else if (isVegas()) t.casino = 0.20;
+      else t.traffic = 0.14;
+    } else if (S.mode === "lumper" || S.mode === "unload"){
+      if (isVegas()){ t.casino = 0.30; t.crowd = 0.30; }
+      else { t.crowd = 0.26; t.traffic = 0.10; }
+    } else if (S.mode === "cine"){
+      t.traffic = 0.15;
+    }
+  }
+  bedTarget.traffic = t.traffic; bedTarget.casino = t.casino; bedTarget.crowd = t.crowd;
+}
+let ambClock = 0;
+function tickAmbience(dt){
+  ambClock -= dt;
+  if (ambClock > 0) return;
+  ambClock = 0.25;
+  updateAmbience();
+  for (const k in beds){
+    const a = beds[k], tgt = muted ? 0 : bedTarget[k];
+    const nv = a.volume + Math.max(-0.06, Math.min(0.06, tgt - a.volume));
+    a.volume = Math.max(0, Math.min(1, nv));
+    if (a.volume > 0.01 && a.paused){ const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+    else if (a.volume <= 0.01 && !a.paused && bedTarget[k] === 0) a.pause();
+  }
+}
+function startCine(){
+  initAudio();
+  vEl.src = isVegas() ? "media/arrive-vegas.mp4" : "media/arrive-night.mp4";
+  vEl.style.display = "block";
+  $("cine-text").textContent = isVegas()
+    ? "Las Vegas, Nevada. Rolling in with the neon up and the whole city awake."
+    : CINE_LINES[Math.floor(Math.random() * CINE_LINES.length)];
+  $("cine-text").style.display = "block";
+  S.mode = "cinevideo";
+  try {
+    vEl.currentTime = 0;
+    const p = vEl.play();
+    if (p && p.catch) p.catch(() => finishVideoCine());
+  } catch (e) { finishVideoCine(); }
+  setMsg("Rolling in…", "any key or click to skip to the yard approach");
+}
+function finishVideoCine(){
+  if (S.mode !== "cinevideo") return;
+  try { vEl.pause(); } catch (e) {}
+  vEl.style.display = "none";
+  rig.x = START_POSE.x; rig.z = 185; rig.th = Math.PI; rig.phi = Math.PI; rig.v = 0;
+  syncRig();
+  S.mode = "cine";
+}
+vEl.addEventListener("ended", finishVideoCine);
+vEl.addEventListener("error", finishVideoCine);
 function endCine(){
   $("cine-text").style.display = "none";
   if (S.mode === "cine"){ S.mode = "drive"; phase = "street"; }
 }
-addEventListener("keydown", () => { if (S.mode === "cine") endCine(); });
-addEventListener("pointerdown", () => { if (S.mode === "cine") endCine(); });
+addEventListener("keydown", () => {
+  if (S.mode === "cinevideo") finishVideoCine();
+  else if (S.mode === "cine") endCine();
+});
+addEventListener("pointerdown", e => {
+  if (e && e.target && e.target.id === "btn-mute") return;
+  if (S.mode === "cinevideo") finishVideoCine();
+  else if (S.mode === "cine") endCine();
+});
+$("btn-mute").addEventListener("click", () => {
+  muted = !muted;
+  $("btn-mute").textContent = muted ? "🔇" : "🔊";
+});
 function stepCine(dt){
   rig.steer *= 0.8;
   rig.v += (6.5 - rig.v) * Math.min(1, dt * 1.5);
@@ -893,9 +973,12 @@ function loop(){
     updateCamera();
   } else if (S.mode === "cine"){
     stepCine(dt);
+  } else if (S.mode === "cinevideo"){
+    updateCamera();
   } else {
     updateCamera();
   }
+  tickAmbience(dt);
   paintDoors();
   drawMap();
   renderer.render(scene, camera);

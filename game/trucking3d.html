@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>371 Days · Between Jobs — Trucking 0.2 (3D)</title>
+<style>
+  :root{ --amber:#d99a3d; --paper:#f2ede1; --muted:#9aa3b5; --line:rgba(217,154,61,.4); --bad:#e06c60; --good:#7fb069; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:#070b14; color:var(--paper); font-family:Georgia,serif; overflow:hidden;}
+  #scene{position:fixed; inset:0;}
+  #hud{position:fixed; top:10px; left:10px; display:flex; gap:8px; z-index:5; flex-wrap:wrap;}
+  .stat{background:rgba(10,15,26,.82); border:1px solid var(--line); border-radius:8px; padding:6px 11px;}
+  .stat b{display:block; color:var(--amber); font-size:1rem;}
+  .stat span{color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.07em;}
+  #msg{position:fixed; left:50%; bottom:88px; transform:translateX(-50%); max-width:640px; width:92%;
+       background:rgba(10,15,26,.88); border:1px solid var(--line); border-radius:10px; padding:10px 16px;
+       text-align:center; font-size:1.02rem; z-index:5;}
+  #msg .sub{display:block; color:var(--muted); font-size:.85rem; margin-top:3px;}
+  #keys{position:fixed; left:10px; bottom:10px; background:rgba(10,15,26,.75); border:1px solid var(--line);
+        border-radius:8px; padding:8px 12px; font-size:.82rem; color:var(--muted); z-index:5; line-height:1.5;}
+  #keys b{color:var(--paper);}
+  #map{position:fixed; top:10px; right:10px; border:1px solid var(--line); border-radius:8px; z-index:5; background:rgba(10,15,26,.85);}
+  .panel{position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(4,6,12,.55); z-index:9;}
+  .panel.on{display:flex;}
+  .card{background:#101a2c; border:1px solid var(--amber); border-radius:12px; max-width:620px; width:92%;
+        max-height:88vh; overflow-y:auto; padding:24px 26px; box-shadow:0 18px 60px rgba(0,0,0,.6);}
+  .card h1{color:var(--amber); font-size:1.5rem; margin-bottom:6px;}
+  .card h2{color:var(--amber); font-size:1.15rem; margin:14px 0 6px;}
+  .card p{margin:8px 0;}
+  .card .dim{color:var(--muted);}
+  .card .heart{color:var(--amber); font-style:italic;}
+  button{background:var(--amber); color:#181003; border:0; border-radius:8px; padding:11px 18px; font:inherit;
+         font-weight:600; cursor:pointer; margin:6px 6px 2px 0;}
+  button:hover{background:#e8ab4e;}
+  button.ghost{background:transparent; color:var(--amber); border:1px solid #a8752a;}
+  .choice{display:block; width:100%; text-align:left; margin:8px 0;}
+  .choice small{display:block; font-weight:400; color:#3a2a10; opacity:.75;}
+  .bar{height:12px; background:#0a0f1a; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:10px 0;}
+  .bar>div{height:100%; background:var(--amber); width:0%; transition:width .25s;}
+  #cine-text{position:fixed; left:50%; bottom:130px; transform:translateX(-50%); width:92%; max-width:640px;
+       text-align:center; font-style:italic; font-size:1.15rem; color:var(--paper); text-shadow:0 2px 8px #000; z-index:6; display:none;}
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<div id="hud">
+  <div class="stat"><span>Search day</span><b id="hud-day">96 of 371</b></div>
+  <div class="stat"><span>Cash</span><b id="hud-cash">$120</b></div>
+  <div class="stat"><span>Load</span><b id="hud-load">—</b></div>
+  <div class="stat"><span>Dock</span><b id="hud-dock">—</b></div>
+  <div class="stat"><span>Delivered</span><b id="hud-done">0</b></div>
+</div>
+
+<canvas id="map" width="172" height="228"></canvas>
+
+<div id="msg">Loading…</div>
+
+<div id="keys">
+  <b>W/S</b> throttle / reverse · <b>A/D</b> steer · <b>Space</b> brake<br>
+  <b>C</b> camera (chase / cab / top) · <b>R</b> reset rig · mouse drag = look around
+</div>
+
+<div id="cine-text"></div>
+
+<!-- TITLE -->
+<div id="p-title" class="panel on">
+  <div class="card">
+    <h1>371 DAYS — Between Jobs</h1>
+    <p class="dim">Trucking chapter · Prototype 0.2 — the drivable one</p>
+    <p>February. You're between trucking jobs two and three, running loads out of
+    52nd &amp; Adams because the search for Scruffy doesn't pay for itself.
+    Every load pays. Every load burns days.</p>
+    <p>Drive the rig down the street, pull into the receiver's yard, and get the
+    trailer into the dock — your way. Then deal with the lumpers.</p>
+    <p class="heart">The bowls stay by the gate. Somebody has to keep the route.</p>
+    <p><button id="btn-start">Start the truck</button></p>
+    <p class="dim">Keyboard needed. Sound off is fine — the truck's imaginary anyway.</p>
+  </div>
+</div>
+
+<!-- DOCK CHOICE -->
+<div id="p-choice" class="panel">
+  <div class="card">
+    <h1>You're in the yard</h1>
+    <p id="choice-meta" class="dim"></p>
+    <p>The dock's marked in amber. How do you want to put it in?</p>
+    <button class="choice" id="btn-manual">Take the wheel — back it in yourself
+      <small>The real thing. Alley-dock from wherever you're sitting. Clean &amp; quick earns a bonus up to $60.</small></button>
+    <button class="choice" id="btn-straight">Straight back
+      <small>Spotter lines you up square in front of the door — you just ease it back. Smaller bonus, up to $25.</small></button>
+    <button class="choice" id="btn-auto">Autopilot — let the yard dog do it
+      <small>Costs a $40 spotter fee and your pride. No bonus. Tiny will say something.</small></button>
+  </div>
+</div>
+
+<!-- LUMPERS -->
+<div id="p-lumper" class="panel">
+  <div class="card">
+    <h1>Docked. Now the lumpers.</h1>
+    <p>The trailer's spotted and the doors are open. Two lumpers run this dock,
+    and their lead — a man called Tiny, who is not — informs you the unloading
+    fee is <b>$85</b>, cash, before a single box moves.</p>
+    <p class="dim" id="lumper-context"></p>
+    <button class="choice" id="btn-pay">Pay the $85
+      <small>They get to work. ~25 minutes, no drama.</small></button>
+    <button class="choice" id="btn-bribe">Offer $45 — "that's all I carry"
+      <small>Might work. Might insult a man named Tiny.</small></button>
+    <button class="choice" id="btn-yell">Yell — "Eighty-five?! For boxes?!"
+      <small>Free. Consequences vary.</small></button>
+  </div>
+</div>
+
+<!-- UNLOADING -->
+<div id="p-unload" class="panel">
+  <div class="card">
+    <h1>Unloading…</h1>
+    <p id="unload-text"></p>
+    <div class="bar"><div id="unload-bar"></div></div>
+    <p class="dim" id="unload-clock"></p>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div id="p-summary" class="panel">
+  <div class="card">
+    <h1>Delivered</h1>
+    <div id="summary-body"></div>
+    <p><button id="btn-next">Next load</button></p>
+  </div>
+</div>
+
+<!-- FEBRUARY END -->
+<div id="p-end" class="panel">
+  <div class="card">
+    <h1>End of February</h1>
+    <div id="end-body"></div>
+    <p style="margin-top:10px;">Job three starts Monday. The truck will take you further
+    from Adams than you want to go — and you'll go, because going is how the search gets paid for.</p>
+    <p class="heart">Scruffy is still out there. The bowls stay by the gate.
+    The search goes on — it has 371 days in it, and February was only part of them.</p>
+    <p><button id="btn-again">Run February again</button>
+    <button id="btn-free" class="ghost">Keep hauling (free run)</button></p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.149.0/three.min.js"></script>
+<script>
+"use strict";
+/* ================= STATE ================= */
+const START_DAY = 96, CHAPTER_DAYS = 28;
+const S = {
+  mode: "title",        // title | cine | drive | choice | auto | lumper | unload | summary | end
+  cash: 120, day: 0, delivered: 0, earned: 0, fees: 0,
+  load: null,           // {city, cargo, miles, pay, days}
+  dockIndex: 2, dockBonus: 0, dockTime: 0, bumps: 0,
+  free: false,
+};
+const DESTS = [["Barstow, CA",180],["Phoenix, AZ",270],["Las Vegas, NV",290],["Los Angeles, CA",110],
+               ["San Diego, CA",130],["Tucson, AZ",380],["Flagstaff, AZ",420],["Bakersfield, CA",290]];
+const CARGO = ["produce","auto parts","building supplies","beverages","paper goods","furniture","frozen food"];
+function newLoad(){
+  const d = DESTS[Math.floor(Math.random()*DESTS.length)];
+  const rate = 1.7 + Math.random()*0.5;
+  S.load = { city:d[0], miles:d[1], cargo:CARGO[Math.floor(Math.random()*CARGO.length)],
+             pay: Math.round(d[1]*rate/5)*5, days: Math.max(1, Math.ceil(d[1]/450)) };
+  S.dockIndex = Math.floor(Math.random()*4);
+}
+const $ = id => document.getElementById(id);
+function hud(){
+  $("hud-day").textContent = (START_DAY + S.day) + " of 371";
+  $("hud-cash").textContent = "$" + S.cash;
+  $("hud-load").textContent = S.load ? S.load.cargo + " → " + S.load.city : "—";
+  $("hud-dock").textContent = "Door " + (S.dockIndex+1);
+  $("hud-done").textContent = S.delivered;
+}
+function setMsg(html, sub){
+  $("msg").innerHTML = html + (sub ? '<span class="sub">' + sub + "</span>" : "");
+}
+function showPanel(id){
+  document.querySelectorAll(".panel").forEach(p => p.classList.remove("on"));
+  if (id) $(id).classList.add("on");
+}
+
+/* ================= THREE SETUP ================= */
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+$("scene").appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2b3a55);           // February dusk
+scene.fog = new THREE.Fog(0x2b3a55, 120, 420);
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 900);
+
+const sun = new THREE.DirectionalLight(0xffd9a8, 1.15);
+sun.position.set(-60, 55, 80);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -130; sun.shadow.camera.right = 130;
+sun.shadow.camera.top = 130; sun.shadow.camera.bottom = -130;
+sun.shadow.camera.far = 400;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x8fa7cc, 0x2a2118, 0.55));
+
+/* ---------- canvas textures ---------- */
+function canvasTex(w, h, draw){
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+const asphaltTex = canvasTex(256, 256, (g,w,h) => {
+  g.fillStyle = "#33373d"; g.fillRect(0,0,w,h);
+  for (let i = 0; i < 2600; i++){
+    g.fillStyle = "rgba(" + (Math.random()<.5? "255,255,255":"0,0,0") + "," + (Math.random()*.07) + ")";
+    g.fillRect(Math.random()*w, Math.random()*h, 2, 2);
+  }
+});
+asphaltTex.wrapS = asphaltTex.wrapT = THREE.RepeatWrapping; asphaltTex.repeat.set(30, 30);
+const trailerTex = canvasTex(1024, 256, (g,w,h) => {
+  g.fillStyle = "#e8e4da"; g.fillRect(0,0,w,h);
+  g.fillStyle = "#d99a3d"; g.fillRect(0, 168, w, 26);
+  g.fillStyle = "#23304a"; g.font = "bold 74px Georgia"; g.textAlign = "center";
+  g.fillText("371 DAYS", w/2, 92);
+  g.font = "bold 40px Georgia"; g.fillStyle = "#8a4a2f";
+  g.fillText("SEARCHING FOR SCRUFFY", w/2, 148);
+  g.fillStyle = "#23304a";
+  [[120,215],[180,228],[880,215],[940,228]].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 13, 0, 7); g.fill(); });
+});
+const trailerTexL = trailerTex.clone();
+trailerTexL.needsUpdate = true;
+
+/* ---------- materials / helpers ---------- */
+const M = {
+  asphalt: new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: .95 }),
+  concrete: new THREE.MeshStandardMaterial({ color: 0x9aa0a3, roughness: .9 }),
+  wall: new THREE.MeshStandardMaterial({ color: 0x7d7468, roughness: .85 }),
+  wallDark: new THREE.MeshStandardMaterial({ color: 0x4a443c, roughness: .9 }),
+  door: new THREE.MeshStandardMaterial({ color: 0x3c4654, roughness: .6, metalness: .5 }),
+  amber: new THREE.MeshStandardMaterial({ color: 0xd99a3d, emissive: 0xcf8a1e, emissiveIntensity: .55 }),
+  green: new THREE.MeshStandardMaterial({ color: 0x7fb069, emissive: 0x4d7c3a, emissiveIntensity: .7 }),
+  white: new THREE.MeshStandardMaterial({ color: 0xf0ede6, roughness: .5 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0x1c2733, roughness: .15, metalness: .7 }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xc9ced4, roughness: .25, metalness: .9 }),
+  tire: new THREE.MeshStandardMaterial({ color: 0x17181a, roughness: .95 }),
+  cabRed: new THREE.MeshStandardMaterial({ color: 0x8a2f23, roughness: .35, metalness: .25 }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x6e5136, roughness: .9 }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x44543a, roughness: .95 }),
+  houseA: new THREE.MeshStandardMaterial({ color: 0xb8a88f, roughness: .9 }),
+  houseB: new THREE.MeshStandardMaterial({ color: 0x93a3b1, roughness: .9 }),
+  roof: new THREE.MeshStandardMaterial({ color: 0x54453a, roughness: .95 }),
+};
+function box(w, h, d, mat, x, y, z, parent, shadow){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  if (shadow !== false){ m.castShadow = true; m.receiveShadow = true; }
+  (parent || scene).add(m);
+  return m;
+}
+function wheel(r, wdt, x, y, z, parent){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, wdt, 18), M.tire);
+  m.rotation.z = Math.PI/2;
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  parent.add(m);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(r*.45, r*.45, wdt+.02, 12), M.chrome);
+  hub.rotation.z = Math.PI/2; hub.position.set(x, y, z); parent.add(hub);
+  return m;
+}
+
+/* ---------- world layout ----------
+   North = -z (warehouse). Street runs along z at x in [-7,7], from z=380 to z=40.
+   Yard: x in [-60,40], z in [-42,40]. Gate in the z=40 fence at x in [-6,14].   */
+const WALL_Z = -42, GATE = { x0:-6, x1:14 }, YARD = { x0:-60, x1:40, z0:-42, z1:40 };
+const DOORS_X = [-24, -8, 8, 24];
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.MeshStandardMaterial({ color: 0x3f4a3a, roughness: 1 }));
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; ground.receiveShadow = true; scene.add(ground);
+
+const yardFloor = new THREE.Mesh(new THREE.PlaneGeometry(YARD.x1-YARD.x0, YARD.z1-YARD.z0), M.asphalt);
+yardFloor.rotation.x = -Math.PI/2;
+yardFloor.position.set((YARD.x0+YARD.x1)/2, 0, (YARD.z0+YARD.z1)/2);
+yardFloor.receiveShadow = true; scene.add(yardFloor);
+
+const road = new THREE.Mesh(new THREE.PlaneGeometry(14, 360), M.asphalt.clone());
+road.material.map = asphaltTex.clone(); road.material.map.repeat.set(2, 40); road.material.map.needsUpdate = true;
+road.rotation.x = -Math.PI/2; road.position.set(0, 0.01, 220); road.receiveShadow = true; scene.add(road);
+for (let z = 52; z < 392; z += 12){                       // center dashes
+  const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 5), new THREE.MeshBasicMaterial({ color: 0xd8c98a }));
+  dash.rotation.x = -Math.PI/2; dash.position.set(0, 0.03, z); scene.add(dash);
+}
+[-8.2, 8.2].forEach(x => {                                  // sidewalks
+  const sw = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 360), M.concrete);
+  sw.rotation.x = -Math.PI/2; sw.position.set(x, 0.02, 220); sw.receiveShadow = true; scene.add(sw);
+});
+
+/* warehouse + dock doors */
+box(112, 9, 2, M.wall, -10, 4.5, WALL_Z - 1);
+box(112, 1.2, 2.6, M.wallDark, -10, 9.4, WALL_Z - 1);
+const doorFrames = [], doorPanels = [];
+DOORS_X.forEach((x, i) => {
+  const frame = box(4.4, 4.6, 0.5, M.amber, x, 2.3, WALL_Z + 0.15);
+  const panel = box(3.4, 4.1, 0.3, M.door, x, 2.05, WALL_Z + 0.3);
+  const num = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6),
+    new THREE.MeshBasicMaterial({ map: canvasTex(128, 128, (g) => {
+      g.fillStyle = "#10151d"; g.fillRect(0,0,128,128);
+      g.fillStyle = "#f2ede1"; g.font = "bold 84px Georgia"; g.textAlign = "center"; g.fillText(String(i+1), 64, 92);
+    })}));
+  num.position.set(x, 6.4, WALL_Z + 0.05); scene.add(num);
+  doorFrames.push(frame); doorPanels.push(panel);
+});
+const dockPad = new THREE.Mesh(new THREE.PlaneGeometry(104, 3.2), M.concrete);
+dockPad.rotation.x = -Math.PI/2; dockPad.position.set(-10, 0.02, WALL_Z + 1.6); dockPad.receiveShadow = true; scene.add(dockPad);
+
+/* staging box paint (west side of yard) */
+(function(){
+  const st = new THREE.Mesh(new THREE.PlaneGeometry(24, 14),
+    new THREE.MeshBasicMaterial({ color: 0xd99a3d, transparent: true, opacity: 0.13 }));
+  st.rotation.x = -Math.PI/2; st.position.set(-26, 0.03, 22); scene.add(st);
+  const edge = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.PlaneGeometry(24, 14)),
+    new THREE.LineBasicMaterial({ color: 0xd99a3d }));
+  edge.rotation.x = -Math.PI/2; edge.position.set(-26, 0.04, 22); scene.add(edge);
+})();
+
+/* fence along z=40 with a gate gap, and yard side fences */
+function fenceRun(x0, x1, z){
+  if (x1 - x0 < 0.5) return;
+  box(x1 - x0, 2.6, 0.25, M.wallDark, (x0 + x1)/2, 1.3, z);
+}
+fenceRun(YARD.x0, GATE.x0, 40); fenceRun(GATE.x1, YARD.x1, 40);
+fenceRun(40.5, 95, 40); // neighbor's fence line, east of the yard
+(function(){ const f = box(0.25, 2.6, 82, M.wallDark, YARD.x0, 1.3, -1); return f; })();
+(function(){ const f = box(0.25, 2.6, 82, M.wallDark, YARD.x1, 1.3, -1); return f; })();
+
+/* parked trailers + cones + light poles (obstacles) */
+const obstacles = [];   // {x, z, r}
+function parkedTrailer(x, z, rotY){
+  const g = new THREE.Group();
+  const body = box(2.6, 2.9, 12.5, M.white, 0, 2.2, 0, g);
+  body.material = new THREE.MeshStandardMaterial({ color: 0xcfd4d8, roughness: .6 });
+  wheel(0.5, 0.4, -1.1, 0.5, -4.4, g); wheel(0.5, 0.4, 1.1, 0.5, -4.4, g);
+  g.position.set(x, 0, z); g.rotation.y = rotY; scene.add(g);
+  obstacles.push({ x, z, r: 4.6 });
+}
+parkedTrailer(30, -18, 0); parkedTrailer(30, 6, 0); parkedTrailer(-48, -30, Math.PI/2);
+function cone(x, z){
+  const c = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.8, 10),
+    new THREE.MeshStandardMaterial({ color: 0xd8622a, roughness: .7 }));
+  c.position.set(x, 0.4, z); c.castShadow = true; scene.add(c);
+  obstacles.push({ x, z, r: 0.55 });
+}
+[[-14,-30],[14,-30],[-38,4],[18,26],[-2,-12],[36,30]].forEach(p => cone(p[0], p[1]));
+function lightPole(x, z){
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 7, 8), M.chrome);
+  p.position.set(x, 3.5, z); scene.add(p);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffe6b0, emissive: 0xffc46b, emissiveIntensity: 1.4 }));
+  head.position.set(x, 7.05, z); scene.add(head);
+  const pt = new THREE.PointLight(0xffc46b, 0.55, 42); pt.position.set(x, 6.8, z); scene.add(pt);
+}
+lightPole(-52, 30); lightPole(34, -36); lightPole(-52, -36); lightPole(12, 100); lightPole(12, 200); lightPole(-12, 300);
+
+/* houses + trees along the street */
+function house(x, z, mat){
+  const g = new THREE.Group();
+  box(9, 4.4, 8, mat, 0, 2.2, 0, g);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(7.4, 2.6, 4), M.roof);
+  roof.position.y = 5.7; roof.rotation.y = Math.PI/4; roof.castShadow = true; g.add(roof);
+  box(2, 2.6, 0.2, M.wood, 0, 1.3, 4.05, g);
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0xffd98f, emissive: 0xffbf5e, emissiveIntensity: .8 }));
+  win.position.set(-2.6, 2.4, 4.06); g.add(win);
+  g.position.set(x, 0, z); g.rotation.y = x < 0 ? Math.PI/2 : -Math.PI/2;
+  scene.add(g);
+}
+for (let z = 70; z <= 350; z += 34){
+  house(-15, z, Math.random() < .5 ? M.houseA : M.houseB);
+  house(15, z + 14, Math.random() < .5 ? M.houseB : M.houseA);
+}
+function tree(x, z){
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 2.6, 7), M.wood);
+  t.position.set(x, 1.3, z); t.castShadow = true; scene.add(t);
+  const c = new THREE.Mesh(new THREE.SphereGeometry(2.1, 10, 8), M.leaf);
+  c.position.set(x, 4.1, z); c.castShadow = true; scene.add(c);
+}
+for (let z = 60; z <= 360; z += 26){ tree(-10.5, z + 6); tree(10.5, z + 18); }
+</script>
+<script>
+"use strict";
+/* ================= THE RIG =================
+   P = tractor rear-axle position; th = tractor heading; phi = trailer heading.
+   Forward vector f(a) = (sin a, cos a) in (x, z). North (warehouse) is -z.      */
+const L1 = 4.3;        // tractor wheelbase
+const HITCH_BACK = 0.5;
+const L2 = 8.6;        // hitch -> trailer axle
+const TRAILER_LEN = 12.5;
+const REAR_OFF = 11.9; // hitch -> trailer rear face
+const rig = { x: 0, z: 250, th: Math.PI, phi: Math.PI, v: 0, steer: 0 };
+const START_POSE = { x: 0, z: 250, th: Math.PI, phi: Math.PI };
+
+const tractor = new THREE.Group(); scene.add(tractor);
+(function buildTractor(){
+  box(2.5, 0.5, 5.6, M.chrome, 0, 0.75, 1.2, tractor);                    // chassis
+  const cab = box(2.45, 1.9, 2.1, M.cabRed, 0, 2.0, 2.9, tractor);       // cab
+  box(2.45, 1.5, 1.5, M.cabRed, 0, 1.85, 1.35, tractor);                   // sleeper
+  box(2.3, 0.85, 0.15, M.glass, 0, 2.35, 3.98, tractor);                  // windshield
+  box(1.9, 0.6, 1.0, M.cabRed, 0, 1.15, 4.3, tractor);                    // hood
+  box(2.2, 0.5, 0.25, M.chrome, 0, 0.75, 4.75, tractor);                  // bumper
+  const tankG = new THREE.CylinderGeometry(0.42, 0.42, 1.7, 12);
+  [-1.15, 1.15].forEach(x => {
+    const t = new THREE.Mesh(tankG, M.chrome);
+    t.rotation.x = Math.PI/2; t.position.set(x, 0.85, 1.6); t.castShadow = true; tractor.add(t);
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.4, 8), M.chrome);
+    stack.position.set(x * 0.92, 2.6, 0.75); stack.castShadow = true; tractor.add(stack);
+  });
+  wheel(0.52, 0.4, -1.15, 0.52, 3.6, tractor); wheel(0.52, 0.4, 1.15, 0.52, 3.6, tractor);
+  wheel(0.52, 0.45, -1.15, 0.52, -0.5, tractor); wheel(0.52, 0.45, 1.15, 0.52, -0.5, tractor);
+  wheel(0.52, 0.45, -1.15, 0.52, -1.5, tractor); wheel(0.52, 0.45, 1.15, 0.52, -1.5, tractor);
+})();
+
+const trailerG = new THREE.Group(); scene.add(trailerG);
+(function buildTrailer(){
+  const sideMat = new THREE.MeshStandardMaterial({ map: trailerTex, roughness: .55 });
+  const sideMatL = new THREE.MeshStandardMaterial({ map: trailerTexL, roughness: .55 });
+  const plain = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: .55 });
+  const mats = [sideMatL, sideMat, plain, plain, plain, plain];
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.9, TRAILER_LEN), mats);
+  body.position.y = 2.35; body.castShadow = true; body.receiveShadow = true; trailerG.add(body);
+  box(2.5, 0.18, TRAILER_LEN, M.chrome, 0, 0.82, 0, trailerG);
+  wheel(0.52, 0.4, -1.12, 0.52, -4.3, trailerG); wheel(0.52, 0.4, 1.12, 0.52, -4.3, trailerG);
+  wheel(0.52, 0.4, -1.12, 0.52, -5.3, trailerG); wheel(0.52, 0.4, 1.12, 0.52, -5.3, trailerG);
+  [-0.9, 0.9].forEach(x => {  // landing gear near the front
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.95, 6), M.chrome);
+    leg.position.set(x, 0.45, 5.2); trailerG.add(leg);
+  });
+})();
+
+const fwd = a => ({ x: Math.sin(a), z: Math.cos(a) });
+function hitchPos(){
+  const f = fwd(rig.th);
+  return { x: rig.x - f.x * HITCH_BACK, z: rig.z - f.z * HITCH_BACK };
+}
+function trailerRear(){
+  const h = hitchPos(), tf = fwd(rig.phi);
+  return { x: h.x - tf.x * REAR_OFF, z: h.z - tf.z * REAR_OFF };
+}
+function syncRig(){
+  tractor.position.set(rig.x, 0, rig.z);
+  tractor.rotation.y = rig.th;
+  const h = hitchPos(), tf = fwd(rig.phi);
+  // trailer center: rear + tf * (TRAILER_LEN/2)
+  const rear = trailerRear();
+  trailerG.position.set(rear.x + tf.x * TRAILER_LEN/2, 0, rear.z + tf.z * TRAILER_LEN/2);
+  trailerG.rotation.y = rig.phi;
+}
+function resetRig(pose){
+  rig.x = pose.x; rig.z = pose.z; rig.th = pose.th; rig.phi = pose.phi;
+  rig.v = 0; rig.steer = 0;
+  syncRig();
+}
+
+/* ================= INPUT ================= */
+const keys = {};
+let camMode = 0;                       // 0 chase, 1 cab, 2 top
+const camNames = ["Chase cam", "Cab cam — first person", "Top cam"];
+let dragging = false, dragDX = 0, lookYaw = 0;
+addEventListener("keydown", e => {
+  keys[e.code] = true;
+  if (e.code === "Space") e.preventDefault();
+  if (e.code === "KeyC" && !e.repeat){ camMode = (camMode + 1) % 3; flash(camNames[camMode]); }
+  if (e.code === "KeyR" && (S.mode === "drive")){ resetRig(START_POSE); flash("Rig reset to the street."); }
+});
+addEventListener("keyup", e => { keys[e.code] = false; });
+renderer.domElement.addEventListener("pointerdown", e => { dragging = true; dragDX = e.clientX; });
+addEventListener("pointerup", () => { dragging = false; });
+addEventListener("pointermove", e => {
+  if (!dragging) return;
+  lookYaw += (e.clientX - dragDX) * 0.005; dragDX = e.clientX;
+  lookYaw = Math.max(-1.2, Math.min(1.2, lookYaw));
+});
+let flashUntil = 0, flashText = "";
+function flash(t){ flashText = t; flashUntil = performance.now() + 1600; }
+
+/* ================= PHYSICS ================= */
+const rigPoints = () => {
+  const f = fwd(rig.th), tf = fwd(rig.phi), h = hitchPos(), rear = trailerRear();
+  return [
+    { x: rig.x + f.x * 5.1, z: rig.z + f.z * 5.1, r: 1.15 },   // nose
+    { x: rig.x, z: rig.z, r: 1.35 },                            // tractor
+    { x: h.x - tf.x * 6, z: h.z - tf.z * 6, r: 1.5 },           // trailer mid
+    { x: rear.x, z: rear.z, r: 1.45 },                          // trailer rear
+  ];
+};
+let bumpCooldown = 0;
+function collide(px, pz){
+  // warehouse wall: only the trailer rear may approach, and only at a door
+  if (pz < WALL_Z + 0.7){
+    return true;
+  }
+  for (const o of obstacles){
+    const dx = px - o.x, dz = pz - o.z;
+    if (dx*dx + dz*dz < o.r * o.r) return true;
+  }
+  // world bounds (soft): street + yard only
+  if (pz > 372 || pz < -41.2) return true;
+  const inYard = pz <= 40.5;
+  if (inYard && (px < YARD.x0 + 1 || px > YARD.x1 - 1)) return true;
+  if (!inYard && (px < -6.6 || px > 6.6) && pz < 372){ /* on street, curbs */ if (pz > 41) return true; }
+  return false;
+}
+function stepPhysics(dt){
+  const steerTarget = (keys.KeyA || keys.ArrowLeft ? 0.55 : 0) + (keys.KeyD || keys.ArrowRight ? -0.55 : 0);
+  rig.steer += (steerTarget - rig.steer) * Math.min(1, dt * 7);
+  let target = 0;
+  if (keys.KeyW || keys.ArrowUp) target = 9;
+  if (keys.KeyS || keys.ArrowDown) target = -3.4;
+  const rate = (keys.Space) ? 14 : (target !== 0 ? 2.6 : 1.4);
+  rig.v += Math.max(-rate * dt, Math.min(rate * dt, target - rig.v));
+  if (keys.Space && Math.abs(rig.v) < 0.25) rig.v = 0;
+  if (Math.abs(rig.v) < 0.004 && target === 0) rig.v = 0;
+
+  const old = { x: rig.x, z: rig.z, th: rig.th, phi: rig.phi };
+  rig.th += (rig.v / L1) * Math.tan(rig.steer) * dt;
+  const f = fwd(rig.th);
+  rig.x += f.x * rig.v * dt;
+  rig.z += f.z * rig.v * dt;
+  rig.phi += (rig.v / L2) * Math.sin(rig.th - rig.phi) * dt;
+
+  // jackknife guard: clamp the articulation
+  let diff = wrap(rig.th - rig.phi);
+  if (Math.abs(diff) > 2.35){
+    rig.phi = rig.th - Math.sign(diff) * 2.35;
+    if (rig.v < 0){ rig.v = 0; flash("Jackknifed! Pull forward to straighten out."); }
+  }
+
+  // collisions: revert on hit
+  bumpCooldown -= dt;
+  for (const p of rigPoints()){
+    if (collide(p.x, p.z)){
+      rig.x = old.x; rig.z = old.z; rig.th = old.th; rig.phi = old.phi;
+      if (Math.abs(rig.v) > 0.5 && bumpCooldown <= 0){
+        S.bumps++; bumpCooldown = 1.2;
+        flash("Bump! (" + S.bumps + " this load — it comes off your bonus)");
+      }
+      rig.v = 0;
+      break;
+    }
+  }
+  syncRig();
+}
+function wrap(a){
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+/* ================= CAMERA ================= */
+function updateCamera(){
+  const f = fwd(rig.th);
+  const mid = { x: rig.x - f.x * 4, z: rig.z - f.z * 4 };
+  if (camMode === 0){
+    const back = 13.5, up = 5.2;
+    const yaw = rig.th + lookYaw;
+    const bf = fwd(yaw);
+    camera.position.lerp(new THREE.Vector3(mid.x - bf.x * back, up, mid.z - bf.z * back), 0.12);
+    camera.lookAt(mid.x + f.x * 6, 1.6, mid.z + f.z * 6);
+  } else if (camMode === 1){
+    const px = rig.x + f.x * 3.1, pz = rig.z + f.z * 3.1;
+    camera.position.set(px - f.z * -0.55, 2.55, pz + f.x * -0.55);
+    const ly = rig.th + lookYaw + rig.steer * -0.25;
+    const lf = fwd(ly);
+    camera.lookAt(px + lf.x * 30, 2.1, pz + lf.z * 30);
+  } else {
+    camera.position.lerp(new THREE.Vector3(mid.x, 46, mid.z + 0.01), 0.15);
+    camera.lookAt(mid.x, 0, mid.z);
+  }
+  lookYaw *= 0.94;
+}
+
+/* ================= MINIMAP ================= */
+const mapCtx = $("map").getContext("2d");
+function drawMap(){
+  const g = mapCtx, W = 172, H = 228;
+  g.fillStyle = "#0a0f1a"; g.fillRect(0, 0, W, H);
+  const sx = x => (x + 62) * (W / 124);
+  const sz = z => (z + 46) * (H / 190);
+  g.fillStyle = "#232a33"; g.fillRect(sx(-60), sz(-42), (100) * W/124, (82) * H/190);        // yard
+  g.fillStyle = "#2c3138"; g.fillRect(sx(-7), sz(40), 14 * W/124, (332) * H/190);           // street
+  g.fillStyle = "#7d7468"; g.fillRect(sx(-66), sz(-46), 112 * W/124, 4 * H/190);            // warehouse
+  DOORS_X.forEach((x, i) => {
+    g.fillStyle = i === S.dockIndex ? "#d99a3d" : "#4a5566";
+    g.fillRect(sx(x) - 4, sz(-42), 8, 3);
+  });
+  g.strokeStyle = "#d99a3d"; g.strokeRect(sx(-38), sz(15), 24 * W/124, 14 * H/190);         // staging
+  const h = hitchPos(), rear = trailerRear();
+  g.strokeStyle = "#f2ede1"; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(sx(rig.x + fwd(rig.th).x * 5), sz(rig.z + fwd(rig.th).z * 5));
+  g.lineTo(sx(h.x), sz(h.z)); g.lineTo(sx(rear.x), sz(rear.z)); g.stroke();
+  g.fillStyle = "#d99a3d"; g.beginPath(); g.arc(sx(rig.x), sz(rig.z), 3, 0, 7); g.fill();
+  g.lineWidth = 1;
+}
+/* ================= FLOW ================= */
+let phase = "street";          // street -> yard -> staged -> chosen
+let chosen = null;             // manual | straight | auto
+let stoppedInBox = 0, dockClock = 0, guideClock = 0;
+const DOCKED_REAR_Z = WALL_Z + 1.45;
+doorFrames.forEach(fr => { fr.material = M.amber.clone(); });
+function paintDoors(){
+  doorFrames.forEach((fr, i) => {
+    if (i === S.dockIndex){
+      const rear = trailerRear();
+      const aligned = Math.abs(rear.x - DOORS_X[i]) < 1.25 && Math.abs(wrap(rig.phi)) < 0.14;
+      fr.material.color.set(aligned ? 0x7fb069 : 0xd99a3d);
+      fr.material.emissive.set(aligned ? 0x4d7c3a : 0xcf8a1e);
+    } else {
+      fr.material.color.set(0x4c463e); fr.material.emissive.set(0x000000);
+    }
+  });
+}
+function inStaging(){
+  return Math.abs(rig.x - (-26)) < 12 && Math.abs(rig.z - 22) < 7;
+}
+function guidance(dt){
+  guideClock -= dt;
+  if (performance.now() < flashUntil){ setMsg(flashText); return; }
+  if (guideClock > 0) return;
+  guideClock = 0.15;
+  if (S.mode !== "drive") return;
+  if (phase === "street"){
+    if (rig.z < 39) phase = "yard";
+    else setMsg("Roll north. The receiver's gate is on your left, through the fence.",
+                "W/S drive · A/D steer · load: " + S.load.cargo + " → " + S.load.city + " · door " + (S.dockIndex + 1));
+    return;
+  }
+  if (phase === "yard"){
+    setMsg("You're in the yard. Pull into the amber staging box on your left and stop.",
+           "How the docking gets done is your call — once you're staged.");
+    return;
+  }
+  if (phase === "chosen"){
+    const rear = trailerRear(), dx = rear.x - DOORS_X[S.dockIndex];
+    const out = rear.z - DOCKED_REAR_Z;
+    const ang = Math.abs(wrap(rig.phi)) * 57.3;
+    const side = Math.abs(dx) < 0.4 ? "centered on the door" :
+      (dx > 0 ? Math.abs(dx).toFixed(1) + " m right of the door" : Math.abs(dx).toFixed(1) + " m left of the door");
+    let txt = "Trailer rear: " + Math.max(0, out).toFixed(1) + " m out · " + side + " · angle off " + ang.toFixed(0) + "°";
+    if (out < 6 && Math.abs(dx) < 1.25 && ang < 8) txt += " — looking good, ease it in.";
+    setMsg(txt, "Door " + (S.dockIndex + 1) + " · bumps: " + S.bumps + " · C for cab cam while you back");
+  }
+}
+function checkStaging(dt){
+  if (phase !== "yard") return;
+  if (inStaging() && Math.abs(rig.v) < 0.15){
+    stoppedInBox += dt;
+    if (stoppedInBox > 0.8){
+      phase = "staged"; S.mode = "choice";
+      $("choice-meta").textContent = S.load.cargo + " for " + S.load.city + " · pays $" + S.load.pay +
+        " · about " + S.load.days + (S.load.days === 1 ? " day" : " days") + " of road, there and back.";
+      showPanel("p-choice");
+    }
+  } else stoppedInBox = 0;
+}
+function checkDocked(){
+  if (phase !== "chosen" || !chosen || chosen === "auto") return;
+  const rear = trailerRear();
+  if (Math.abs(rear.x - DOORS_X[S.dockIndex]) <= 1.25 &&
+      rear.z <= DOCKED_REAR_Z + 0.5 && rear.z >= WALL_Z - 0.4 &&
+      Math.abs(wrap(rig.phi)) <= 0.14 && Math.abs(rig.v) < 0.45){
+    onDocked();
+  }
+}
+function onDocked(){
+  S.mode = "lumper";
+  let bonus = 0;
+  if (chosen === "manual") bonus = 60 - S.bumps * 8 - (dockClock > 150 ? 20 : dockClock > 90 ? 10 : 0);
+  else if (chosen === "straight") bonus = 25 - S.bumps * 8;
+  S.dockBonus = Math.max(0, bonus);
+  let ctx = "Docked " + (chosen === "auto" ? "by the yard dog." : "by your own hand.");
+  if (chosen !== "auto") ctx += " Docking bonus: $" + S.dockBonus + (S.bumps ? " (" + S.bumps + " bump" + (S.bumps > 1 ? "s" : "") + " — Tiny saw.)" : " — clean as a whistle.");
+  $("lumper-context").textContent = ctx;
+  showPanel("p-lumper");
+  setMsg("Docked at door " + (S.dockIndex + 1) + ".", "");
+}
+
+/* ---------- the three choices ---------- */
+$("btn-manual").addEventListener("click", () => {
+  chosen = "manual"; phase = "chosen"; dockClock = 0;
+  S.mode = "drive"; showPanel(null);
+  flash("Your dock. Your problem. Back it in.");
+});
+$("btn-straight").addEventListener("click", () => {
+  chosen = "straight"; phase = "chosen"; dockClock = 0;
+  resetRig({ x: DOORS_X[S.dockIndex], z: -20, th: 0, phi: 0 });
+  S.mode = "drive"; showPanel(null);
+  flash("Tiny's spotter lined you up square. Ease it straight back — small corrections.");
+});
+$("btn-auto").addEventListener("click", () => {
+  chosen = "auto"; phase = "chosen";
+  S.mode = "auto"; showPanel(null);
+  startAutopilot();
+});
+
+/* ---------- autopilot: hitch follows a bezier, trailer trails it ---------- */
+const auto = { t: 0, dur: 11, from: null, ctrl: null, to: null, hist: [] };
+function startAutopilot(){
+  const h = hitchPos();
+  auto.from = { x: h.x, z: h.z };
+  auto.to = { x: DOORS_X[S.dockIndex], z: DOCKED_REAR_Z + REAR_OFF };
+  auto.ctrl = { x: (h.x + auto.to.x) / 2 + 6, z: Math.max(h.z, auto.to.z) + 20 };
+  auto.t = 0; auto.hist = [];
+  flash("The yard dog climbs in. “Watch and learn, driver.”");
+}
+function bez(p0, p1, p2, t){
+  const a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
+  return { x: a * p0.x + b * p1.x + c * p2.x, z: a * p0.z + b * p1.z + c * p2.z };
+}
+function stepAutopilot(dt){
+  auto.t += dt / auto.dur;
+  const t = Math.min(1, auto.t);
+  const e = t * t * (3 - 2 * t);
+  const hp = bez(auto.from, auto.ctrl, auto.to, e);
+  auto.hist.unshift({ x: hp.x, z: hp.z });
+  let acc = 0, rear = auto.hist[auto.hist.length - 1];
+  for (let i = 1; i < auto.hist.length; i++){
+    const a = auto.hist[i - 1], b = auto.hist[i];
+    acc += Math.hypot(a.x - b.x, a.z - b.z);
+    if (acc >= REAR_OFF){ rear = b; break; }
+  }
+  if (auto.hist.length > 500) auto.hist.pop();
+  const phi = Math.atan2(hp.x - rear.x, hp.z - rear.z);
+  const swing = Math.sin(e * Math.PI) * 0.28;
+  rig.phi = phi;
+  rig.th = phi + swing;
+  const f = fwd(rig.th);
+  rig.x = hp.x + f.x * HITCH_BACK;
+  rig.z = hp.z + f.z * HITCH_BACK;
+  rig.v = 0;
+  syncRig();
+  if (auto.t >= 1){
+    rig.phi = 0; rig.th = 0;
+    rig.x = auto.to.x; rig.z = auto.to.z + HITCH_BACK;
+    syncRig();
+    S.fees += 40;
+    onDocked();
+  }
+}
+
+/* ---------- lumpers ---------- */
+let unloadPlan = null;
+function resolveLumpers(kind){
+  const r = Math.random();
+  let fee = 0, mins = 0, text = "";
+  if (kind === "pay"){
+    fee = 85; mins = 25;
+    text = "Tiny pockets the cash, nods once, and the forklift's moving before you've set the brake. Professional.";
+  } else if (kind === "bribe"){
+    if (r < 0.55){ fee = 45; mins = 35; text = "Tiny looks at the $45, looks at you, shrugs. “Slow day. Fine.” They unload — at $45 speed."; }
+    else { fee = 110; mins = 50; text = "“That's all you carry?” Tiny laughs like you told a joke. The fee is now $110, and somehow the freight got heavier."; }
+  } else {
+    if (r < 0.4){ fee = 85; mins = 20; text = "You yell. Tiny yells louder — then grins. “Finally, a driver with a pulse.” They unload fast, out of pure spite. (A carton kissed the floor. There may be a $30 damage claim later.)"; S.fees += 30; }
+    else { fee = 85; mins = 90; text = "You yell. Tiny checks his watch, announces lunch, and the whole crew walks to the taco truck. Ninety minutes, driver. The fee's still $85 when they get back."; }
+  }
+  S.fees += fee;
+  unloadPlan = { fee, mins, text };
+  $("unload-text").textContent = text;
+  showPanel("p-unload");
+  S.mode = "unload";
+  let shown = 0;
+  const iv = setInterval(() => {
+    shown += mins / 16;
+    if (shown >= mins){ shown = mins; clearInterval(iv); setTimeout(showSummary, 450); }
+    $("unload-bar").style.width = (shown / mins * 100) + "%";
+    $("unload-clock").textContent = "Dock clock: " + Math.round(shown) + " of " + mins + " minutes";
+  }, 260);
+}
+$("btn-pay").addEventListener("click", () => resolveLumpers("pay"));
+$("btn-bribe").addEventListener("click", () => resolveLumpers("bribe"));
+$("btn-yell").addEventListener("click", () => resolveLumpers("yell"));
+
+/* ---------- summary / next load ---------- */
+function showSummary(){
+  S.mode = "summary";
+  const total = S.load.pay + S.dockBonus - S.fees;
+  S.cash += total;
+  S.earned += S.load.pay + S.dockBonus;
+  S.delivered++;
+  S.day += S.load.days;
+  $("summary-body").innerHTML =
+    "<p>" + S.load.cargo + " delivered to " + S.load.city + " — door " + (S.dockIndex + 1) + ".</p>" +
+    "<p>Load pay: <b>$" + S.load.pay + "</b>" +
+    (S.dockBonus ? " · Docking bonus: <b>$" + S.dockBonus + "</b>" : "") +
+    "<br>Lumper &amp; dock fees: <b>−$" + S.fees + "</b>" +
+    "<br><b>Net: $" + total + "</b> · Cash on hand: $" + S.cash + "</p>" +
+    "<p class='dim'>The run took " + S.load.days + (S.load.days === 1 ? " day" : " days") +
+    " off the search. Search day " + (START_DAY + S.day) + " of 371.</p>" +
+    "<p class='heart'>First thing back at Adams: check the lot. Then the bowls.</p>";
+  S.fees = 0;
+  showPanel("p-summary");
+  hud();
+}
+$("btn-next").addEventListener("click", () => {
+  showPanel(null);
+  if (!S.free && S.day >= CHAPTER_DAYS){ endFebruary(); return; }
+  newLoad(); hud();
+  resetRig(START_POSE);
+  phase = "street"; chosen = null; S.bumps = 0;
+  startCine();
+});
+function endFebruary(){
+  S.mode = "end";
+  $("end-body").innerHTML =
+    "<p>February's books: <b>" + S.delivered + "</b> loads delivered · <b>$" + S.earned +
+    "</b> earned with the wheel and the work · cash on hand <b>$" + S.cash + "</b>.</p>";
+  showPanel("p-end");
+}
+$("btn-again").addEventListener("click", () => {
+  S.cash = 120; S.day = 0; S.delivered = 0; S.earned = 0; S.fees = 0; S.free = false;
+  newLoad(); hud(); resetRig(START_POSE);
+  phase = "street"; chosen = null; S.bumps = 0;
+  showPanel(null); startCine();
+});
+$("btn-free").addEventListener("click", () => {
+  S.free = true; newLoad(); hud(); resetRig(START_POSE);
+  phase = "street"; chosen = null; S.bumps = 0;
+  showPanel(null); S.mode = "drive";
+  setMsg("Free run. The search goes on past February.", "");
+});
+
+/* ---------- cinematic street beat ---------- */
+const CINE_LINES = [
+  "February, late light. Another load, another road — the search rides along whether it pays or not.",
+  "Somewhere behind you: 52nd and Adams, a vacant lot, two bowls by a gate.",
+  "You check the lot every six hours when you're home. On the road, you check your mirrors and your phone.",
+];
+function startCine(){
+  S.mode = "cine";
+  $("cine-text").textContent = CINE_LINES[Math.floor(Math.random() * CINE_LINES.length)];
+  $("cine-text").style.display = "block";
+  setMsg("Rolling…", "any key or click to take the wheel");
+}
+function endCine(){
+  $("cine-text").style.display = "none";
+  if (S.mode === "cine"){ S.mode = "drive"; phase = "street"; }
+}
+addEventListener("keydown", () => { if (S.mode === "cine") endCine(); });
+addEventListener("pointerdown", () => { if (S.mode === "cine") endCine(); });
+function stepCine(dt){
+  rig.steer *= 0.8;
+  rig.v += (6.5 - rig.v) * Math.min(1, dt * 1.5);
+  rig.z -= rig.v * dt;
+  syncRig();
+  camera.position.lerp(new THREE.Vector3(rig.x + 11, 3.2, rig.z + 7), 0.05);
+  camera.lookAt(rig.x, 2, rig.z - 6);
+  if (rig.z < 165) endCine();
+}
+
+/* ---------- start ---------- */
+$("btn-start").addEventListener("click", () => {
+  newLoad(); hud();
+  resetRig(START_POSE);
+  showPanel(null);
+  startCine();
+});
+
+/* ================= MAIN LOOP ================= */
+const clock = new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, clock.getDelta());
+  if (S.mode === "drive"){
+    stepPhysics(dt);
+    checkStaging(dt);
+    if (phase === "chosen"){ dockClock += dt; checkDocked(); }
+    guidance(dt);
+    updateCamera();
+  } else if (S.mode === "auto"){
+    stepAutopilot(dt);
+    updateCamera();
+  } else if (S.mode === "cine"){
+    stepCine(dt);
+  } else {
+    updateCamera();
+  }
+  paintDoors();
+  drawMap();
+  renderer.render(scene, camera);
+}
+syncRig(); hud();
+loop();
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

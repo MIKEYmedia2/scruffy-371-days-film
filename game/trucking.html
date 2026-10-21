@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>371 Days · Between Jobs — Trucking Prototype 0.1</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#101a2c; --panel2:#0e1626;
+    --amber:#d99a3d; --amber-dim:#a8752a; --paper:#f2ede1;
+    --muted:#9aa3b5; --line:rgba(217,154,61,.35); --good:#7fb069; --bad:#c1666b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--paper); font-family:Georgia,'Times New Roman',serif; line-height:1.55; padding:16px;}
+  #wrap{max-width:760px; margin:0 auto;}
+  h1{font-size:1.7rem; color:var(--amber); letter-spacing:.02em;}
+  h2{font-size:1.2rem; color:var(--amber); margin-bottom:8px;}
+  .sub{color:var(--muted); font-style:italic; margin-bottom:14px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:14px;}
+  #hud{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;}
+  .stat{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 12px; min-width:110px;}
+  .stat b{display:block; color:var(--amber); font-size:1.05rem;}
+  .stat span{color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.06em;}
+  button{background:var(--amber); color:#181003; border:0; border-radius:8px; padding:10px 16px; font:inherit; font-weight:600; cursor:pointer; margin:4px 6px 4px 0;}
+  button:hover{background:#e8ab4e;}
+  button.ghost{background:transparent; color:var(--amber); border:1px solid var(--amber-dim);}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .job{border:1px solid var(--line); border-radius:8px; padding:12px; margin:10px 0; background:var(--panel2);}
+  .job b{color:var(--paper);}
+  .job .meta{color:var(--muted); font-size:.9rem;}
+  .log{background:#0a0f1a; border:1px solid var(--line); border-radius:8px; padding:12px; height:190px; overflow-y:auto; font-size:.95rem;}
+  .log p{margin-bottom:6px;}
+  .log .dim{color:var(--muted);}
+  .log .good{color:var(--good);}
+  .log .bad{color:var(--bad);}
+  .bar{height:14px; background:#0a0f1a; border:1px solid var(--line); border-radius:7px; overflow:hidden; margin:10px 0;}
+  .bar > div{height:100%; background:var(--amber); width:0%; transition:width .3s;}
+  .quiz p{margin-bottom:10px;}
+  .quiz label{display:block; padding:6px 10px; border:1px solid var(--line); border-radius:8px; margin:6px 0; cursor:pointer;}
+  .quiz label:hover{border-color:var(--amber);}
+  .screen{display:none;}
+  .screen.on{display:block;}
+  .note{color:var(--muted); font-size:.9rem;}
+  .heart{color:var(--amber); font-style:italic;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>371 DAYS — Between Jobs</h1>
+  <p class="sub">The trucking chapter · Prototype 0.1 · February, 52nd &amp; Adams</p>
+
+  <div id="hud" class="panel" style="padding:10px;">
+    <div class="stat"><span>Search day</span><b id="hud-day">—</b></div>
+    <div class="stat"><span>Time</span><b id="hud-block">—</b></div>
+    <div class="stat"><span>Cash</span><b id="hud-cash">—</b></div>
+    <div class="stat"><span>Loads hauled</span><b id="hud-loads">0</b></div>
+    <div class="stat"><span>Leads</span><b id="hud-leads">0</b></div>
+  </div>
+
+  <!-- INTRO -->
+  <section id="scr-intro" class="screen on">
+    <div class="panel">
+      <p>Scruffy is gone. Not “ran off and came back” gone — gone the way that
+      turns a man's life into a route: out before dawn, home after dark,
+      checking the same corners because <em>not</em> checking is the one thing
+      he can't do.</p>
+      <p style="margin-top:10px;">It's February. You're between trucking jobs
+      two and three, based at 52nd &amp; Adams. The rent doesn't care about a
+      lost dog, and neither does an empty fuel tank — so you work. Every load
+      pays. Every load also burns days off the search.</p>
+      <p style="margin-top:10px;" class="heart">371 days. That's how long the
+      search runs. What those days make of you is the game.</p>
+      <p style="margin-top:14px;"><button id="btn-start">Get your CDL →</button></p>
+    </div>
+  </section>
+
+  <!-- CDL -->
+  <section id="scr-cdl" class="screen">
+    <div class="panel quiz">
+      <h2>CDL — quick check</h2>
+      <p class="note">Three questions. Get at least two right to get behind the wheel.</p>
+      <div id="quiz"></div>
+      <p><button id="btn-cdl" disabled>Turn it in</button></p>
+      <p id="cdl-msg" class="note"></p>
+    </div>
+  </section>
+
+  <!-- HUB -->
+  <section id="scr-hub" class="screen">
+    <div class="panel">
+      <h2>52nd &amp; Adams</h2>
+      <p id="hub-flavor" class="note">Home base. The bowls are by the gate. You check every six hours — everybody on the block knows the rhythm by now.</p>
+      <p style="margin-top:10px;">
+        <button id="btn-board">Job board</button>
+        <button id="btn-search" class="ghost">Search the neighborhood</button>
+        <button id="btn-rest" class="ghost">Rest (next 6-hour block)</button>
+      </p>
+    </div>
+    <div class="panel">
+      <h2>Field log</h2>
+      <div id="log" class="log"></div>
+    </div>
+  </section>
+
+  <!-- JOB BOARD -->
+  <section id="scr-board" class="screen">
+    <div class="panel">
+      <h2>Job board</h2>
+      <p class="note">Every run pays — and every run takes days you can't spend searching. Pick your poison.</p>
+      <div id="jobs"></div>
+      <p><button id="btn-board-back" class="ghost">← Back to Adams</button></p>
+    </div>
+  </section>
+
+  <!-- HAUL -->
+  <section id="scr-haul" class="screen">
+    <div class="panel">
+      <h2 id="haul-title">On the road</h2>
+      <p id="haul-meta" class="note"></p>
+      <div class="bar"><div id="haul-bar"></div></div>
+      <p id="haul-status">Loaded up. Roll when you're ready.</p>
+      <p style="margin-top:10px;">
+        <button id="btn-drive">Drive a leg (~150 mi)</button>
+        <button id="btn-fuel" class="ghost">Fuel stop (−$85)</button>
+      </p>
+      <div id="haul-log" class="log" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- SEARCH -->
+  <section id="scr-search" class="screen">
+    <div class="panel">
+      <h2>Search — 52nd &amp; Adams</h2>
+      <p class="note">Each action takes one six-hour block. It's February — it gets dark early, and the lot gets quiet.</p>
+      <p style="margin-top:8px;">
+        <button data-act="lot">Check the vacant lot</button>
+        <button data-act="bowls">Fresh bacon &amp; water in the bowls</button>
+        <button data-act="flyers">Flyers up and down Adams (−$15)</button>
+        <button data-act="neighbors">Ask the neighbors</button>
+        <button data-act="trapdoor">Check by the trap door</button>
+        <button data-act="clothes">Leave worn clothes by the gate</button>
+      </p>
+      <p><button id="btn-search-back" class="ghost">← Back</button></p>
+      <div id="search-log" class="log" style="margin-top:10px;"></div>
+    </div>
+  </section>
+
+  <!-- END -->
+  <section id="scr-end" class="screen">
+    <div class="panel">
+      <h2>End of February</h2>
+      <div id="end-stats"></div>
+      <p style="margin-top:12px;">Job three starts Monday. The truck will take you
+      further from Adams than you want to go — and you'll go, because going is
+      how the search gets paid for.</p>
+      <p style="margin-top:10px;" class="heart">Scruffy is still out there.
+      The bowls stay by the gate. The search goes on — it has 371 days in it,
+      and February was only part of them.</p>
+      <p style="margin-top:14px;"><button id="btn-again">Play February again</button></p>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+/* ============ STATE ============ */
+const CHAPTER_DAYS = 28;           // February
+const START_SEARCH_DAY = 96;       // search day when the chapter opens
+const BLOCKS = ["12–6 AM","6 AM–12 PM","12–6 PM","6 PM–12 AM"];
+const S = {};
+function reset(){
+  S.day = 0;              // days into February (0..27)
+  S.block = 1;            // start 6 AM
+  S.cash = 120;
+  S.loads = 0; S.earned = 0; S.spent = 0;
+  S.leads = 0; S.checks = 0;
+  S.searchCount = {};     // diminishing returns per action
+  S.haul = null;
+}
+reset();
+
+/* ============ HELPERS ============ */
+const $ = id => document.getElementById(id);
+function show(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("on"));
+  $(id).classList.add("on");
+  hud();
+}
+function hud(){
+  $("hud-day").textContent = S.day < CHAPTER_DAYS ? (START_SEARCH_DAY + S.day) + " of 371" : "—";
+  $("hud-block").textContent = S.day < CHAPTER_DAYS ? BLOCKS[S.block] : "—";
+  $("hud-cash").textContent = "$" + S.cash;
+  $("hud-loads").textContent = S.loads;
+  $("hud-leads").textContent = S.leads;
+}
+function log(el, html, cls){
+  const p = document.createElement("p");
+  if (cls) p.className = cls;
+  p.innerHTML = html;
+  el.appendChild(p);
+  el.scrollTop = el.scrollHeight;
+}
+const mainLog = (h,c) => log($("log"), h, c);
+function stamp(){
+  return "Day " + (START_SEARCH_DAY + S.day) + ", " + BLOCKS[S.block] + " — ";
+}
+/* Advance one 6-hour block; returns false if the chapter just ended. */
+function advance(){
+  S.block++;
+  if (S.block > 3){ S.block = 0; S.day++; }
+  hud();
+  if (S.day >= CHAPTER_DAYS){ endChapter(); return false; }
+  return true;
+}
+function endChapter(){
+  show("scr-end");
+  $("end-stats").innerHTML =
+    "<p>Loads hauled: <b>" + S.loads + "</b> · Earned: <b>$" + S.earned +
+    "</b> · Spent: <b>$" + S.spent + "</b> · Cash on hand: <b>$" + S.cash +
+    "</b></p><p>Six-hour checks kept: <b>" + S.checks +
+    "</b> · Leads followed: <b>" + S.leads + "</b></p>";
+}
+
+/* ============ CDL QUIZ ============ */
+const QUIZ = [
+  { q:"A loaded rig on a dry road — what's a safe following distance at highway speed?",
+    a:["One car length","At least 6–7 seconds","Right on their bumper, they can see you"], ok:1 },
+  { q:"Federal hours-of-service: after 11 hours of driving, you must…",
+    a:["Take a 10-hour break","Grab coffee and keep rolling","Drive 3 more, it's fine"], ok:0 },
+  { q:"Pre-trip inspection — the one thing you never skip?",
+    a:["The radio presets","Tires, brakes, lights, and leaks","Waxing the hood"], ok:1 },
+];
+let quizBuilt = false;
+function buildQuiz(){
+  if (quizBuilt) return; quizBuilt = true;
+  const box = $("quiz");
+  QUIZ.forEach((item, i) => {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = "<p><b>" + (i+1) + ".</b> " + item.q + "</p>";
+    item.a.forEach((a, j) => {
+      const lab = document.createElement("label");
+      lab.innerHTML = '<input type="radio" name="q' + i + '" value="' + j + '"> ' + a;
+      lab.querySelector("input").addEventListener("change", checkQuiz);
+      wrap.appendChild(lab);
+    });
+    box.appendChild(wrap);
+  });
+}
+function checkQuiz(){
+  const answered = QUIZ.every((_, i) => document.querySelector('input[name="q' + i + '"]:checked'));
+  $("btn-cdl").disabled = !answered;
+}
+$("btn-start").addEventListener("click", () => { buildQuiz(); show("scr-cdl"); });
+$("btn-cdl").addEventListener("click", () => {
+  let score = 0;
+  QUIZ.forEach((item, i) => {
+    const v = document.querySelector('input[name="q' + i + '"]:checked');
+    if (v && +v.value === item.ok) score++;
+  });
+  if (score >= 2){
+    show("scr-hub");
+    mainLog("CDL's in your wallet. The truck's fueled and the bowls are full. February starts now.", "good");
+    mainLog("Job two ended last week. Job three starts in " + CHAPTER_DAYS + " days. In between: work, and the search.", "dim");
+  } else {
+    $("cdl-msg").textContent = "Scored " + score + "/3. The examiner suggests studying up and trying again — pick different answers.";
+  }
+});
+
+/* ============ JOB BOARD ============ */
+const DESTS = [
+  { city:"Barstow, CA",    miles:180 },
+  { city:"Phoenix, AZ",    miles:270 },
+  { city:"Las Vegas, NV",  miles:290 },
+  { city:"Los Angeles, CA",miles:110 },
+  { city:"San Diego, CA",  miles:130 },
+  { city:"Tucson, AZ",     miles:380 },
+  { city:"Flagstaff, AZ",  miles:420 },
+  { city:"Bakersfield, CA",miles:290 },
+];
+const CARGO = ["produce","auto parts","building supplies","beverages","paper goods","furniture","frozen food"];
+function genJobs(){
+  const picks = [];
+  const pool = DESTS.slice();
+  for (let i = 0; i < 3; i++){
+    const d = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const rate = 1.7 + Math.random() * 0.5;
+    picks.push({
+      city: d.city, miles: d.miles,
+      cargo: CARGO[Math.floor(Math.random() * CARGO.length)],
+      pay: Math.round(d.miles * rate / 5) * 5,
+      days: Math.max(1, Math.ceil(d.miles / 450)),
+    });
+  }
+  return picks;
+}
+$("btn-board").addEventListener("click", () => {
+  const box = $("jobs"); box.innerHTML = "";
+  genJobs().forEach(job => {
+    const div = document.createElement("div");
+    div.className = "job";
+    div.innerHTML = "<b>Adams → " + job.city + "</b> — " + job.cargo +
+      '<div class="meta">' + job.miles + " mi · about " + job.days +
+      (job.days === 1 ? " day" : " days") + " round trip · pays <b>$" + job.pay + "</b></div>";
+    const b = document.createElement("button");
+    b.textContent = "Take this load";
+    b.addEventListener("click", () => startHaul(job));
+    div.appendChild(b);
+    box.appendChild(div);
+  });
+  show("scr-board");
+});
+$("btn-board-back").addEventListener("click", () => show("scr-hub"));
+
+/* ============ HAUL ============ */
+const HAUL_EVENTS = [
+  { t:"Wind's up through the pass. You grip the wheel and take it slow.", cls:"dim" },
+  { t:"Scale house is open. You roll through clean.", cls:"dim" },
+  { t:"A car flashes its lights — your trailer light's flickering. Quick fix at the shoulder, back rolling.", cls:"dim" },
+  { t:"Dispatch calls: receiver can take you early. Good news for once.", cls:"good" },
+  { t:"Your phone buzzes — a neighbor back on Adams thinks she heard a dog near the lot last night. You write it down. You always write it down.", cls:"good", lead:true },
+  { t:"Fuel gauge's lower than you figured. You'll need a stop before the next leg.", cls:"bad" },
+];
+function startHaul(job){
+  S.haul = { job, driven: 0, fuelPenalty: false };
+  $("haul-title").textContent = "Hauling " + job.cargo + " — Adams → " + job.city;
+  $("haul-meta").textContent = job.miles + " miles · pays $" + job.pay + " on delivery · about " + job.days + (job.days === 1 ? " day" : " days");
+  $("haul-bar").style.width = "0%";
+  $("haul-status").textContent = "Loaded up. Roll when you're ready.";
+  $("haul-log").innerHTML = "";
+  $("btn-drive").disabled = false;
+  show("scr-haul");
+}
+$("btn-fuel").addEventListener("click", () => {
+  if (!S.haul) return;
+  S.cash -= 85; S.spent += 85; hud();
+  log($("haul-log"), "Fuel stop: −$85. Coffee too — driver has to run on something.", "dim");
+});
+$("btn-drive").addEventListener("click", () => {
+  const h = S.haul; if (!h) return;
+  h.driven += 150;
+  const ev = HAUL_EVENTS[Math.floor(Math.random() * HAUL_EVENTS.length)];
+  log($("haul-log"), ev.t, ev.cls);
+  if (ev.lead){ S.leads++; hud(); }
+  const pct = Math.min(100, Math.round(h.driven / h.job.miles * 100));
+  $("haul-bar").style.width = pct + "%";
+  if (h.driven >= h.job.miles){
+    S.loads++; S.earned += h.job.pay; S.cash += h.job.pay;
+    log($("haul-log"), "Delivered. $" + h.job.pay + " in hand.", "good");
+    $("btn-drive").disabled = true;
+    $("haul-status").textContent = "Run complete. Heading home to Adams…";
+    setTimeout(() => {
+      for (let i = 0; i < h.job.days * 4; i++){ S.block++; if (S.block > 3){ S.block = 0; S.day++; } }
+      S.haul = null;
+      mainLog("Back from " + h.job.city + ". The run took " + h.job.days + (h.job.days === 1 ? " day" : " days") + " off the search — and paid $" + h.job.pay + ". First thing you do is check the lot.", "dim");
+      if (S.day >= CHAPTER_DAYS){ endChapter(); } else { show("scr-hub"); }
+    }, 900);
+  } else {
+    $("haul-status").textContent = h.driven + " of " + h.job.miles + " miles. Keep rolling.";
+  }
+});
+
+/* ============ SEARCH ============ */
+const SEARCH = {
+  lot:      { cost:0, lines:[
+    "The vacant lot's empty. Wind moves the weeds. You stand there a while anyway.",
+    "Fresh paw prints by the fence — small ones. Could be. Could be a cat. You photograph them and note the time.",
+    "Nothing in the lot. The quiet out here has a sound of its own."]},
+  bowls:    { cost:0, lines:[
+    "Bacon's gone by morning — something ate well. Raccoons love you. You refill it anyway, because what if.",
+    "Water bowl's tipped. You right it, fill it, set the bacon where the cameras of the block — the neighbors — can see the spot."]},
+  flyers:   { cost:15, lines:[
+    "Twenty flyers: poles, the laundromat board, the market window. A kid asks if Scruffy's nice. Yes. He's nice.",
+    "Flyers up. Last month's have faded to ghosts — you cover them with fresh ones. Layers of not-giving-up."]},
+  neighbors:{ cost:0, lines:[
+    "Mrs. A. hasn't seen him, but she leaves her porch light on 'for the dog.' Half the block does now.",
+    "A neighbor swears he saw a small scruffy dog two streets over — three days ago. You walk it. Nothing. But it's a lead, and leads are fuel."]},
+  trapdoor: { cost:0, lines:[
+    "Under the porch, by the trap door: cool dirt, no dog. You check anyway. You always check.",
+    "The trap door's undisturbed. Still — you call once, softly, and listen longer than makes sense."]},
+  clothes:  { cost:0, lines:[
+    "You swap the worn shirt by the gate for a fresher-worn one. Scent is a map home, if he's out there reading it.",
+    "Dirty clothes by the gate, rotated like always. The neighbors stopped asking about it weeks ago."]},
+};
+$("btn-search").addEventListener("click", () => show("scr-search"));
+$("btn-search-back").addEventListener("click", () => show("scr-hub"));
+document.querySelectorAll("[data-act]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const key = btn.getAttribute("data-act");
+    const act = SEARCH[key];
+    if (act.cost > 0){
+      if (S.cash < act.cost){
+        log($("search-log"), "Flyers cost $" + act.cost + " — you're short. Haul a load first.", "bad");
+        return;
+      }
+      S.cash -= act.cost; S.spent += act.cost;
+    }
+    S.searchCount[key] = (S.searchCount[key] || 0) + 1;
+    const lines = act.lines;
+    const line = lines[Math.min(S.searchCount[key] - 1, lines.length - 1)];
+    S.checks++;
+    log($("search-log"), stamp() + line, key === "neighbors" && S.searchCount[key] === 2 ? "good" : "");
+    if (key === "neighbors" && S.searchCount[key] === 2) S.leads++;
+    if (key === "lot" && S.searchCount[key] === 2) S.leads++;
+    mainLog(stamp() + "Searched — " + btn.textContent.split(" (")[0] + ".", "dim");
+    advance();
+    hud();
+  });
+});
+
+/* ============ REST ============ */
+$("btn-rest").addEventListener("click", () => {
+  mainLog(stamp() + "You rest — if you can call it that. One ear open, like always.", "dim");
+  advance();
+});
+
+/* ============ RESTART ============ */
+$("btn-again").addEventListener("click", () => {
+  reset();
+  $("log").innerHTML = "";
+  show("scr-intro");
+  hud();
+});
+hud();
+</script>
+</body>
+</html>
